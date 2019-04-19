@@ -6,8 +6,8 @@ import os
 import time
 import string
 import random
-import pickle
 import numpy as np
+import utils_data
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -25,9 +25,9 @@ lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
 nb_runs    = 1             # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
 np.random.seed(1993)        # Fix the random seed
-Cifar_train_file   = '/home/magic/Project/TF/code_TF/SVM_net/SVM_cifar/cifar-100-python/train'
+Cifar_train_file   = '/home/magic/project/virtualenv/TF/cifar-100-python/train'
 #需要修改
-Cifar_test_file   = '/home/magic/Project/TF/code_TF/SVM_net/SVM_cifar/cifar-100-python/test'#需要修改
+Cifar_test_file   = '/home/magic/project/virtualenv/TF/cifar-100-python/test'#需要修改
 ################################################################
 
 #loading dataset
@@ -56,7 +56,7 @@ for iteration_run in range(nb_runs):
     # Create neural network model
     print('Run {0} starting ...'.format(iteration_run))
     print("Building model and compiling functions...")
-    image_train, label_train,image_test, label_test = utils_cifar.load_data(Cifar_train_file, Cifar_test_file)
+    image_train, label_train,image_test, label_test = utils_data.load_data(Cifar_train_file, Cifar_test_file)
     image_batch, label_batch_0 = tf.train.batch([image_train, label_train], batch_size=batch_size, num_threads=8)
     label_batch = tf.one_hot(label_batch_0, 100)
     variables_graph, variables_graph2, scores, scores_stored = utils_cifar.prepareNetwork(gpu,image_batch)

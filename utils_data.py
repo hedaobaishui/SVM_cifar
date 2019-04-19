@@ -1,7 +1,11 @@
-import cPickle
 import numpy as np
-import tensorflow as tf
-
+import os
+import scipy.io
+import sys
+try:
+    import cPickle
+except:
+    import pickle as cPickle
 '''
 字典形式的数据：
 cifar100 data content: 
@@ -64,10 +68,29 @@ def load_data(Cifar_train_file,Cifar_test_file,nb_per_cl_val=0):
 	#需要将数据转化为tensorflow的数据 还要考虑batch_size。
 	
 	return dict(
-	X_train = tf.convert_to_tensor(X_train,dtype=tf.float32),
-	Y_train = tf.convert_to_tensor(Y_train,dtype=tf.int32),
-	X_vaild = tf.convert_to_tensor(X_vaild,dtype=tf.float32),
-	Y_vaild = tf.convert_to_tensor(Y_vaild,dtype=tf.int32),
-	X_test = tf.convert_to_tensor(X_test,dtype=tf.float32),
-	Y_test = tf.convert_to_tensor(Y_test,dtype=tf.int32),
+	X_train = X_train,
+	Y_train = Y_train,
+	X_test = X_test,
+	Y_test = Y_test,
 	)
+
+'''
+#函数名 : prepare_train_data
+#作者:magic
+#日期:2019.4.19
+#作用:准备可以用来训练模型的数据
+#参数:数据集,对应样本的标签,batch_size
+#返回:返回准备好的数据集和对应的标签
+'''
+def prepare_train_data_batch(train_data,train_data_label,batch_size=128):
+    iter=0
+    data_batch=list()
+    data_label=list()
+    _data_batch=train_data['X_train'][batch_size*iter:batch_size*(iter+1)]
+    _data_label=train_data_label['Y_train'][batch_size*iter:batch_size*(iter+1)]
+    for x,y in _data_batch,_data_label:
+        data_batch.append(x)
+        hot=np.zeros(100)
+        hot[int(y)]=1
+        data_label.append(hot)
+    return data_batch,data_label
