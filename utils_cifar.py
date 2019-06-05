@@ -96,7 +96,7 @@ def residual_block(inp,phase,alpha=0.0,nom='a',increase_dim=False,last=False):
 	input_num_filters = inp.get_shape().as_list()[3]
 	
 	if increase_dim :
-		first_stride = [1,1,2,2]
+		first_stride = [1,2,2,1]
 		out_num_filters = input_num_filters*2 #卷积核数量扩大一倍
 	else:
 		first_stride = [1,1,1,1]
@@ -107,7 +107,7 @@ def residual_block(inp,phase,alpha=0.0,nom='a',increase_dim=False,last=False):
 	layer = conv(layer,'resconv12'+nom,size=3,strides=[1,1,1,1],out_channels=out_num_filters,apply_relu=False,alpha=alpha,padding='SAME')
 	
 	if increase_dim :
-		projection = conv(inp,'projconv'+nom,size=1,strides=[1,1,2,2],out_channels=out_num_filters,alpha=alpha,apply_relu=False,padding='SAME',bias=False)
+		projection = conv(inp,'projconv'+nom,size=1,strides=[1,2,2,1],out_channels=out_num_filters,alpha=alpha,apply_relu=False,padding='SAME',bias=False)
 		projection = batch_norm(projection,'batch_norm_projconv'+nom,phase=phase)
 		if last :
 			block = layer +projection
@@ -150,17 +150,17 @@ def ResNet34(inp, phase, num_outputs=100,itera=0,alpha=0.0):#phase test or train
 	for letter in 'ghij':
 		layer = residual_block(layer, phase, alpha=0.0,nom=letter)
     
-	# Third stack of residual blocks,output is 64 x 8 x 8
+	# Third stack of residual blocks,output is  8 x 8 x 64
 	layer = residual_block(layer, phase, alpha=0.0,nom='k',increase_dim=True)
 	for letter in 'lmn':
 		layer = residual_block(layer, phase, alpha=0.0,nom=letter)
 
-
+	# forth stack of residual blocks,output is  4 x 4 x 128
 	layer = residual_block(layer, phase, alpha=0.0, nom='o', increase_dim=True)
 	layer = residual_block(layer, phase, alpha=0.0, nom='p', last=True)
 # 后面添加全连接层
 	layer = pool(layer, 'pool_last', 'avg', size=4, stride=1, padding='VALID')
-	layer = conv(layer, name='fc', size=1, out_channels=num_outputs, padding='VALID', apply_relu=False, alpha=alpha)[:, :,0, 0]
+	layer = conv(layer, name='fc', size=1, out_channels=num_outputs, padding='VALID', apply_relu=False, alpha=alpha)[:, 0, 0,:]
 	return layer
 
 
