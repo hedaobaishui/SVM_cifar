@@ -34,6 +34,7 @@ Cifar_test_file   = 'F:\Dataset\ILSVRC2012\cifar-100-python/test'#需要修改
 print("\n")
 # Initialization
 dictionary_size     = 500-nb_val
+loss_batch = []
 #top1_acc_list_cumul = np.zeros((100/nb_cl,3,nb_runs))
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
@@ -62,7 +63,7 @@ for iteration_run in range(nb_runs):
     variables_graph, variables_graph2, scores, scores_stored = utils_cifar.prepareNetwork(gpu,image_batch)
     with tf.device('/gpu:0'):
         scores        = tf.concat(scores,0)
-        l2_reg        = wght_decay * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope='ResNet18'))
+        l2_reg        = wght_decay * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES, scope='ResNet34'))
         loss_class    = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=label_batch, logits=scores))
         loss          = loss_class + l2_reg
         learning_rate = tf.placeholder(tf.float32, shape=[])
@@ -81,7 +82,7 @@ for iteration_run in range(nb_runs):
             print('Epoch %i' % epoch)
             print('file_num_cl=', 100)
             # print(len(files_from_cl))
-            for i in range(int(np.ceil(100/ batch_size))):  # 6250/128
+            for i in range(int(np.ceil(5000/ batch_size))):  # 5000/128
                 loss_class_val, _, sc, lab = sess.run([loss_class, train_step, scores, label_batch_0],
                                                       feed_dict={learning_rate: lr})
                 loss_batch.append(loss_class_val)
@@ -93,7 +94,7 @@ for iteration_run in range(nb_runs):
                     loss_batch = []
 
                 # Plot the training top 1 accuracy every 80 batches
-                print('i=', i)
+                # print('i=', i)
                 if (i + 1) % 20 == 0:
                     stat = []
                     stat += ([ll in best for ll, best in zip(lab, np.argsort(sc, axis=1)[:, -1:])])
