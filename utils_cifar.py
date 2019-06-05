@@ -5,6 +5,10 @@ import scipy.io
 import sys
 from scipy.spatial.distance import cdist
 
+try:
+	import cPickle
+except:
+	import pickle as cPickle
 
 
 def relu(x,name,alpha):
@@ -33,10 +37,10 @@ def conv(inp,name,size,out_channels,strides=[1,1,1,1],
 		#size 是卷积核的大小
 		W = get_variable("W",shape=[size,size,in_channels,out_channels],dtype=tf.float32,
 								initializer=initializer,regularizer=tf.nn.l2_loss)
-		b = get_variable("b",shape=[1,1,in_channels,out_channels],dtype=tf.float32,
+		b = get_variable("b",shape=[1,1,1,out_channels],dtype=tf.float32,
 								initializer=tf.zeros_initializer(),trainable=bias)
 		
-		if dilation:#膨胀
+		if dilation:# 膨胀
 			assert(strides==[1,1,1,1])
 			out = tf.add(tf.nn.atrous_conv2d(inp,W,rate=dilation,padding=padding),b,name='convolution')
 			out.set_shape([batch_size,res1,res2,out_channels])
@@ -44,7 +48,7 @@ def conv(inp,name,size,out_channels,strides=[1,1,1,1],
 			out = tf.add(tf.nn.conv2d(inp,W,strides,padding=padding),b,name='convolution')
 		
 		if apply_relu:
-			out = relu(out,alpha,name='relu')
+			out = relu(out,'relu',alpha)
 	return out
 								
 def softmax(target,axis,name=None):
@@ -61,9 +65,9 @@ def batch_norm(inp,name,phase,decay=0.9):
 		moving_variance = get_variable("var",shape=[channels],dtype=tf.float32,initializer=tf.constant_initializer(1.0),trainable=False)
 		
 		offset = get_variable("offset",shape=[channels],dtype=tf.float32,initializer=tf.constant_initializer(0.0))
-		scale = get_variable("scale",ashape=[channels],dtype=tf.float32,initializer=tf.constant_initializer(1.0),regularizer=tf.nn.l2_loss)
+		scale = get_variable("scale",shape=[channels],dtype=tf.float32,initializer=tf.constant_initializer(1.0),regularizer=tf.nn.l2_loss)
 		
-		mean,variance = tf.nn.moments(inp,axes=[0,1,2],shitf=moving_mean)
+		mean,variance = tf.nn.moments(inp,axes=[0,1,2],shift=moving_mean)
 		
 		mean_op=moving_mean.assign(decay*moving_mean+(1-decay)*mean)
 		var_op = moving_variance.assign(decay*moving_variance+(1-decay)*variance)
@@ -71,9 +75,9 @@ def batch_norm(inp,name,phase,decay=0.9):
 		assert(phase in ['train','test'])
 		if phase == 'train':
 			with tf.control_dependencies([mean_op,var_op]):
-				return tf.nn.batch_normlization(inp,mean,variance,offset,scale,0.01,name='norm')
+				return tf.nn.batch_normalization(inp,mean,variance,offset,scale,0.01,name='norm')
 		else:
-			return tf.nn.batch_normlization(inp,moving_mean,moving_variance,offset,scale,0.01,name='norm')
+			return tf.nn.batch_normalization(inp,moving_mean,moving_variance,offset,scale,0.01,name='norm')
 	
 def pool(inp,name,kind,size,stride,padding='SAME'):
 	assert kind in ['max','avg']
@@ -89,7 +93,7 @@ def pool(inp,name,kind,size,stride,padding='SAME'):
 	return out
 
 def residual_block(inp,phase,alpha=0.0,nom='a',increase_dim=False,last=False):
-	input_num_filters = inp.get_ashape().as_list()[1]
+	input_num_filters = inp.get_shape().as_list()[3]
 	
 	if increase_dim :
 		first_stride = [1,1,2,2]
@@ -137,11 +141,11 @@ def ResNet34(inp, phase, num_outputs=100,itera=0,alpha=0.0):#phase test or train
 	layer = batch_norm(layer, 'batch_norm_1', phase=phase)
 	#layer = pool(layer, 'pool1', 'max', size=3, stride=2)
     
-    # first stack of residual blocks, output is 16 x 32 x 32
+    # first stack of residual blocks, output is 32 x 32 x16
 	for letter in 'abcde':
 		layer = residual_block(layer, phase, alpha=0.0,nom=letter)
     
-    # second stack of residual blocks, output is 32 x 16 x 16
+    # second stack of residual blocks, output is 16 x 16 x32
 	layer = residual_block(layer, phase, alpha=0.0,nom='f',increase_dim=True)
 	for letter in 'ghij':
 		layer = residual_block(layer, phase, alpha=0.0,nom=letter)
