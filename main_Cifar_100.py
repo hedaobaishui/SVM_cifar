@@ -23,11 +23,11 @@ lr_old     = 2.             # Initial learning rate
 lr_strat   = [49, 63]       # Epochs where learning rate gets decreased
 lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
-nb_runs    = 1             # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
+nb_runs    = 1              # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
 np.random.seed(1993)        # Fix the random seed
-Cifar_train_file   = '/home/magic/project/virtualenv/TF/cifar-100-python/train'
+Cifar_train_file   = 'F:\Dataset\ILSVRC2012\cifar-100-python/train'
 #需要修改
-Cifar_test_file   = '/home/magic/project/virtualenv/TF/cifar-100-python/test'#需要修改
+Cifar_test_file   = 'F:\Dataset\ILSVRC2012\cifar-100-python/test'#需要修改
 ################################################################
 
 #loading dataset
@@ -52,12 +52,12 @@ for iteration_run in range(nb_runs):
     np.random.shuffle(order)
     np.save('order', order)#### 存储样本顺序的序列
 
-    # Prepare Theano variables for inputs and targets
     # Create neural network model
     print('Run {0} starting ...'.format(iteration_run))
     print("Building model and compiling functions...")
     image_train, label_train,image_test, label_test = utils_data.load_data(Cifar_train_file, Cifar_test_file)
-    image_batch, label_batch_0 = tf.train.batch([image_train, label_train], batch_size=batch_size, num_threads=8)
+    #next batch
+    image_batch, label_batch_0 = utils_data.Prepare_train_data_batch(image_train,label_train,nb_runs,order,nb_cl,batch_size)
     label_batch = tf.one_hot(label_batch_0, 100)
     variables_graph, variables_graph2, scores, scores_stored = utils_cifar.prepareNetwork(gpu,image_batch)
     with tf.device('/gpu:0'):
