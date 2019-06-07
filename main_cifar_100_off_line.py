@@ -45,7 +45,7 @@ dictionary_size   = 500-nb_val
 loss_batch        = []
 class_means       = np.zeros((128,100,2,nb_groups))
 files_protoset     = []
-
+save_weights      =  None
 # Select the order for the class learning
 # 使用固定的order
 order = np.load('./order.npy', encoding='latin1')
@@ -91,6 +91,10 @@ for step_classes in [2,5,10,20,50]:
             sess.run(tf.global_variables_initializer())
             lr = lr_old
 
+            if itera > 0:
+                void0 = sess.run([(variables_graph[i]).assign(save_weights[i]) for i in range(len(variables_graph))])
+                #void1 = sess.run(op_assign)
+
             print('training*****************************************************')
             print("Batch of classes {} out of {} batches".format(itera, 100 / nb_cl))
             for epoch in range(epochs):  # 训练模型
@@ -124,6 +128,7 @@ for step_classes in [2,5,10,20,50]:
 
             # copy weights to store network
             print('saving model')
+            save_weights = sess.run([variables_graph[i] for i in range(len(variables_graph))])
             save_model_path = save_path + 'step_'+str(step_classes)+'_classes'+'/off_line/'
             utils_cifar.save_model(save_model_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
                                     sess=sess)

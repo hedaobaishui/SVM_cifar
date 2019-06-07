@@ -36,6 +36,7 @@ Cifar_train_file  = 'F:/Dataset/ILSVRC2012/cifar-100-python/train'
 #需要修改
 Cifar_test_file   = 'F:/Dataset/ILSVRC2012/cifar-100-python/test'#需要修改
 save_path         = './model/'
+save_weights      =  None
 ################################################################
 
 #loading dataset
