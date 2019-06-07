@@ -1,0 +1,31 @@
+1.编写测试脚本
+2.编写SVM保留集程序
+3.编写使用logits作为标准的保留集
+4.离线训练的误差。
+5.硬训练的误差。
+6.保留集数量对分类精度的影响
+7.NCM 中reading_data_and_preparing_network 的path 路径问题。(打开模型的位置)
+
+
+总的进程：
+1.cifar100 在（finetuning,off_line,NCM,SVM_NET,logits）上的训练 5万样本。
+2.cifar100 在（SPN_NET）上的训练 5万样本 100类
+
+3.cifar100 在（finetuning,off_line,NCM,SVM,logits）上的测试 1万样本。
+4.cifar100 在（SPN_NET）上的测试 1万样本 100类
+
+5.SVM_NET在cifar100上验证保留集数量K对分类性能的影响
+6.SPN_NET在cifar100上验证保留集数量K对分类性能的影响
+
+
+
+#只训练100类/step
+7.imagenet2012 在（finetuning,off_line,NCM,SVM,logits）上的训练 120万样本。
+8.imagenet2012 在（finetuning,off_line,NCM,SVM,logits）上的训练 120万样本。
+
+9.imagenet2012 在（finetuning,off_line,NCM,SVM,logits）上的测试 10万样本。
+10.imagenet2012 在（finetuning,off_line,NCM,SVM,logits）上的测试 10万样本。
+
+options:
+1.SPN_NET 测试固定不同层次网络对模型分类精度的影响
+2.SPN_NET 模型的训练时间 固定 后边的网络和固定前边的网络

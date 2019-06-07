@@ -3,6 +3,7 @@ import os
 import scipy.io
 import sys
 import tensorflow as tf
+import utils_cifar
 try:
 	import cPickle
 except:
@@ -79,27 +80,149 @@ def load_data(Cifar_train_file,Cifar_test_file,nb_per_cl_val=0):
 #函数名 : GetData prepare_train_data_batch
 #作者:magic
 #日期:2019.4.19
-#作用:准备可以用来训练模型的数据
+#作用:准备可以用来训练模型的数据(包括保留集的数据)
 #参数:数据集,对应样本的标签,batch_size
 #返回:返回准备好的数据集和对应的标签
 '''
 #nu_runs:第几次增量学习#nb_cl每次迭代的类别数
-def GetData(train_data,train_data_label,nu_runs,order,nb_cl):
-	traindata_index = order[nu_runs*nb_cl:(nu_runs+1)*nb_cl]
+def GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl):
+	traindata_index = order[itera*nb_cl:(itera+1)*nb_cl]
 	images =[]
 	label =[]
+	file_xu=[]
 	for i in traindata_index:
 		index = np.where(train_data_label[0:50000] == i)
 		images.append(train_data[index])
 		label.append(train_data_label[index])
+		file_xu.append(index)
+	#添加保留集的数据信息
+	for i in range(100):
+		# 添加图像信息
+		images.append(train_data[xu_protoset[i]])
+		# 添加图像标签
+		label.append(train_data_label[xu_protoset[i]])
+
+	file_xu = np.concatenate(file_xu)
 	images = np.concatenate(images)
 	label = np.concatenate(label)
-	return images,label
-def Prepare_train_data_batch(train_data,train_data_label,nu_runs,order,nb_cl,batch_size=128):
-	images,label = GetData(train_data,train_data_label,nu_runs,order,nb_cl)
+	return images,label,file_xu
+def Prepare_train_data_batch(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128):
+	images,label,file_protoset = GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
 	images = tf.cast(images, tf.float32)
 	label = tf.cast(label, tf.int32)
 	# 从tensor列表中按顺序或随机抽取一个tensor
-	input_queue = tf.train.slice_input_producer([images, label], shuffle=True)
-	image_batch, label_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
-	return image_batch, label_batch
+	input_queue = tf.train.slice_input_producer([images, label,file_protoset], shuffle=True)
+	image_batch, label_batch,file_protoset_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
+	return image_batch, label_batch,file_protoset_batch
+
+def GetData_all(train_data,train_data_label,xu_protoset,itera,order,nb_cl):
+	traindata_index = order[0:(itera+1)*nb_cl]
+	images =[]
+	label =[]
+	file_xu=[]
+	for i in traindata_index:
+		index = np.where(train_data_label[0:50000] == i)
+		images.append(train_data[index])
+		label.append(train_data_label[index])
+		file_xu.append(index)
+	#添加保留集的数据信息
+	for i in range(100):
+		# 添加图像信息
+		images.append(train_data[xu_protoset[i]])
+		# 添加图像标签
+		label.append(train_data_label[xu_protoset[i]])
+
+	file_xu = np.concatenate(file_xu)
+	images = np.concatenate(images)
+	label = np.concatenate(label)
+	return images,label,file_xu
+
+def Prepare_train_data_batch_all(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128):
+	images,label,file_protoset = GetData_all(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
+	images = tf.cast(images, tf.float32)
+	label = tf.cast(label, tf.int32)
+	# 从tensor列表中按顺序或随机抽取一个tensor
+	input_queue = tf.train.slice_input_producer([images, label,file_protoset], shuffle=True)
+	image_batch, label_batch,file_protoset_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
+	return image_batch, label_batch,file_protoset_batch
+
+#获得测试数据
+def GetTestData(test_data,test_data_label,itera,order,nb_cl):
+	traindata_index = order[0:(itera+1)*nb_cl]
+	images =[]
+	label =[]
+	file_xu=[]
+	for i in traindata_index:
+		index = np.where(test_data_label[0:10000] == i)
+		images.append(test_data[index])
+		label.append(test_data_label[index])
+		file_xu.append(index)#图片在矩阵中的序号 可以视作文件名
+
+	file_xu = np.concatenate(file_xu)
+	images = np.concatenate(images)
+	label = np.concatenate(label)
+	return images,label,file_xu
+
+def Prepare_test_data_batch(test_data,test_data_label,itera,order,nb_cl,batch_size=128):
+	images,label,file_protoset = GetData_all(test_data,test_data_label,itera,order,nb_cl)
+	images = tf.cast(images, tf.float32)
+	label = tf.cast(label, tf.int32)
+	# 从tensor列表中按顺序或随机抽取一个tensor
+	input_queue = tf.train.slice_input_producer([images, label,file_protoset], shuffle=True)
+	image_batch, label_batch,file_protoset_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
+	return image_batch, label_batch,file_protoset_batch
+'''
+#函数名 : reading_data_and_preparing_network
+#作者:magic
+#日期:2019.6.6
+#作用:获得数据样本的模型输出特征(未执行 尚在参数阶段 执行sess.run 后获得)
+#参数:数据样本,对应样本的标签,batch_size
+#返回:返回网络参数和样本对应的特征。
+'''
+
+def reading_data_and_preparing_network(option,train_data,train_data_label,xu_protoset, itera, batch_size, order,nb_cl, save_path):
+	if option == 'train':
+		image_batch, label_batch,file_protoset_batch = Prepare_train_data_batch(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128)
+	elif option == 'test':
+		image_batch, label_batch, file_protoset_batch = Prepare_test_data_batch(train_data,train_data_label, itera,order, nb_cl, batch_size=128)
+	label_batch_one_hot = tf.one_hot(label_batch, 100)
+	### Network and loss function
+	with tf.variable_scope('ResNet34'):
+		with tf.device('/gpu:0'):
+			scores = utils_cifar.ResNet34(image_batch, phase='test')
+			graph = tf.get_default_graph()
+			op_feature_map = graph.get_operation_by_name('ResNet34/pool_last/avg').outputs[0]
+
+	loss_class = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=label_batch_one_hot, logits=scores))
+
+	### Initilization
+	#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>注意模型保存路径<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	params = dict(cPickle.load(open(save_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera)), 'rb')
+	inits = utils_cifar.get_weight_initializer(params)
+
+	return inits, scores, label_batch, loss_class, file_protoset_batch,op_feature_map
+
+'''
+#函数名 : reading_data_and_preparing_network
+#作者:magic
+#日期:2019.6.6
+#作用:获得数据样本的模型输出特征
+#参数:数据样本,对应样本的标签,batch_size
+#返回:返回网络参数和样本对应的特征。
+'''
+def load_class_in_feature_space(nb_cl, batch_size, scores, label_batch, loss_class, file_protoset_batch,op_feature_map, sess):
+	label_dico = []
+	Dtot = []
+	processed_file = []
+	for i in range(int(np.ceil(len(nb_cl*500) / batch_size) + 1)):#执行的次数
+		sc, l, loss,file_tmp, feat_map_tmp = sess.run(
+			[scores, label_batch, loss_class, file_protoset_batch,op_feature_map])#样本得分 一个batch的样本标签 交叉熵损失 特征输出
+		processed_file.extend(file_tmp)
+		label_dico.extend(l)
+		mapped_prototypes = feat_map_tmp[:, 0, 0, :]
+		Dtot.append((mapped_prototypes.T) / np.linalg.norm(mapped_prototypes.T, axis=0))#np.linalg.norm 二范数 归一化
+
+	Dtot = np.concatenate(Dtot, axis=1)
+	label_dico = np.array(label_dico)
+	processed_file = np.array(processed_file)
+	return Dtot, label_dico, processed_file

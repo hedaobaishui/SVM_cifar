@@ -1,0 +1,7 @@
+文件：
+main_Cifar_100:使用34层残差网络实现CIifar_100分类。
+main_Cifar_100_finetuning:微调式的增量学习。
+main_Cifar_100_logits:使用网络输出的logits的偏离值 作为标准筛选保留集 实现增量学习
+main_Cifar_100_NCM: 使用NCM 作为标准筛选保留集 实现增量学习参考论文《iCaRL: Incremental Classifier and Representation Learning》
+main_Cifar_100_SVM: 使用SVM 作为标准筛选保留集 实现增量学习参考论文学位论文《基于卷积神经网络的增量学习》作者：齐利泉
+main_Cifar_100_off_line:使用离线训练获得每个增量阶段的模型。理论上是基于34层残差网络的最优模型。
