@@ -9,7 +9,7 @@ import random
 import numpy as np
 import utils_data
 import svmtree
-
+import set_data_path
 try:
 	import cPickle
 except:
@@ -24,19 +24,17 @@ n          = 5              # Set the depth of the architecture: n = 5 -> 32 lay
 nb_val     = 0              # Validation samples per class
 nb_cl      = 10             # Classes per group
 nb_groups  = int(100/nb_cl)
+Num_all_protos =1000        # 保留集所有样本的数量
 nb_protos  = 20             # Number of prototypes per class at the end: total protoset memory/ total number of classes
 alph       = 5              # 在每个支持向量样本 周边抽取的样本数
 epochs     = 70             # Total number of epochs
 lr_old     = 0.05             # Initial learning rate
-lr_strat   = [30,40]       # Epochs where learning rate gets decreased
+lr_strat   = [1,2]       # Epochs where learning rate gets decreased
 lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
 nb_runs    = 1              # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
 np.random.seed(1993)        # Fix the random seed
-Cifar_train_file  = 'F:/Dataset/ILSVRC2012/cifar-100-python/train'
-#需要修改
-Cifar_test_file   = 'F:/Dataset/ILSVRC2012/cifar-100-python/test'#需要修改
-save_path         = './model/'
+Cifar_train_file, Cifar_test_file, save_path = set_data_path.get_data_path()
 ################################################################
 
 #loading dataset
@@ -46,21 +44,22 @@ dictionary_size   = 500-nb_val
 loss_batch        = []
 class_means       = np.zeros((128,100,2,nb_groups))
 files_protoset     = []
-
+# Select the order for the class learning
+order = np.load('./order.npy', encoding='latin1')
 for i in range(100):
     files_protoset.append([])
 #top1_acc_list_cumul = np.zeros((100/nb_cl,3,nb_runs))
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2]:#,5,10,20,50]:
+for step_classes in [10]:#,5,10,20,50]:
     nb_cl = step_classes  # Classes per group
     nb_groups = 2#int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
-            epochs = 80
+            epochs = 3
         else:
-            epochs = 50
+            epochs = 3
         """
         1、先构建网络，定义一些变量
         2、构建损失函数
@@ -69,9 +68,6 @@ for step_classes in [2]:#,5,10,20,50]:
         5、先实现残差网络　再实现增量学习
         6、实现简单的残差网络
         """
-        # Select the order for the class learning
-        order = np.load('./order.npy',encoding='latin1')
-
         # Create neural network model
         print('Run {0} starting ...'.format(itera))
         print("Building model and compiling functions...")
@@ -177,7 +173,6 @@ for step_classes in [2]:#,5,10,20,50]:
         1.加载训练好的模型参数
         2.用模型对训练数据参数特征
         3.使用数据特征作为依据 进行样本选择
-        4.
             '''
         model_path = save_path + 'step_'+str(nb_cl)+'_classes/SVM/'
         inits, scores, label_batch, loss_class, file_xu_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, model_path)
@@ -190,7 +185,7 @@ for step_classes in [2]:#,5,10,20,50]:
             #完成全部迭代
             Dtot, label_dico,file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size,scores, label_batch, loss_class,
                                                                       file_xu_batch,op_feature_map, sess, len(label_))
-            file_process = np.array([x.decode() for x in file_process])
+            #file_process = np.array([x.decode() for x in file_process])
             # Herding procedure : ranking of the potential exemplars
             print('Exemplars selection starting ...')
 
@@ -223,11 +218,28 @@ for step_classes in [2]:#,5,10,20,50]:
             cl_list = [int(cl - itera * nb_cl) for cl in cl_list]#又从零开始编号
             print('Exemplars selection starting by SVMT ...')
 
-            files_protoset = svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
-                                         files_protoset, itera, nb_protos, alph, nu_cl_itera, pic_name)
+            with open('cl_feature_svm.pickle', 'wb') as fp:
+                cPickle.dump(cl_feature_svm, fp)
+            with open('label_for_svm.pickle', 'wb') as fp:
+                cPickle.dump(label_for_svm, fp)
+            with open('nu_cl_for_svm.pickle', 'wb') as fp:
+                cPickle.dump(nu_cl_for_svm, fp)
+            with open('cl_list.pickle', 'wb') as fp:
+                cPickle.dump(cl_list, fp)
+            with open('pic_name.pickle', 'wb') as fp:
+                cPickle.dump(pic_name, fp)
+            nb_protos_ = Num_all_protos /((itera+1)*num_cl)
+            protoset_tmp = []
+            for i in range(10):
+                protoset_tmp.append([])
+            svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
+                                         files_protoset, itera, nb_protos_, alph, nu_cl_itera, pic_name)
+            for i in range(num_cl):
+                class_index = order[itera * num_cl + i]
+                files_protoset[class_index] = protoset_tmp[i]
             print(files_protoset)
         # Reset the graph
         tf.reset_default_graph()
 
-        with open(str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:
-            cPickle.dump(files_protoset, fp)
+    with open(str(nb_cl) + 'files_protoset_by'+str(step_classes)+'classes.pickle', 'wb') as fp:
+        cPickle.dump(files_protoset, fp)
