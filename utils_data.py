@@ -107,13 +107,13 @@ def GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl):
 	label = np.concatenate(label)
 	return images,label,file_xu
 def Prepare_train_data_batch(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128):
-	images,label,file_protoset = GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
+	images,label,file_xu = GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
 	images = tf.cast(images, tf.float32)
 	label = tf.cast(label, tf.int32)
 	# 从tensor列表中按顺序或随机抽取一个tensor
-	input_queue = tf.train.slice_input_producer([images, label,file_protoset], shuffle=True)
-	image_batch, label_batch,file_protoset_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
-	return image_batch, label_batch,file_protoset_batch
+	input_queue = tf.train.slice_input_producer([images, label,file_xu], shuffle=True)
+	image_batch, label_batch,file_xu_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
+	return image_batch, label_batch,file_xu_batch
 
 def GetData_all(train_data,train_data_label,xu_protoset,itera,order,nb_cl):
 	traindata_index = order[0:(itera+1)*nb_cl]
@@ -164,7 +164,7 @@ def GetTestData(test_data,test_data_label,itera,order,nb_cl):
 	return images,label,file_xu
 
 def Prepare_test_data_batch(test_data,test_data_label,itera,order,nb_cl,batch_size=128):
-	images,label,file_protoset = GetData_all(test_data,test_data_label,itera,order,nb_cl)
+	images,label,file_protoset = GetTestData(test_data,test_data_label,itera,order,nb_cl)
 	images = tf.cast(images, tf.float32)
 	label = tf.cast(label, tf.int32)
 	# 从tensor列表中按顺序或随机抽取一个tensor
@@ -182,9 +182,9 @@ def Prepare_test_data_batch(test_data,test_data_label,itera,order,nb_cl,batch_si
 
 def reading_data_and_preparing_network(option,train_data,train_data_label,xu_protoset, itera, batch_size, order,nb_cl, save_path):
 	if option == 'train':
-		image_batch, label_batch,file_protoset_batch = Prepare_train_data_batch(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128)
+		image_batch, label_batch,file_xu_batch = Prepare_train_data_batch(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128)
 	elif option == 'test':
-		image_batch, label_batch, file_protoset_batch = Prepare_test_data_batch(train_data,train_data_label, itera,order, nb_cl, batch_size=128)
+		image_batch, label_batch, file_xu_batch = Prepare_test_data_batch(train_data,train_data_label, itera,order, nb_cl, batch_size=128)
 	label_batch_one_hot = tf.one_hot(label_batch, 100)
 	### Network and loss function
 	with tf.variable_scope('ResNet34'):
@@ -197,10 +197,10 @@ def reading_data_and_preparing_network(option,train_data,train_data_label,xu_pro
 
 	### Initilization
 	#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>注意模型保存路径<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-	params = dict(cPickle.load(open(save_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera)), 'rb')
+	params = dict(cPickle.load(open(save_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera,'rb')))
 	inits = utils_cifar.get_weight_initializer(params)
 
-	return inits, scores, label_batch, loss_class, file_protoset_batch,op_feature_map
+	return inits, scores, label_batch, loss_class, file_xu_batch,op_feature_map
 
 '''
 #函数名 : reading_data_and_preparing_network
@@ -210,13 +210,13 @@ def reading_data_and_preparing_network(option,train_data,train_data_label,xu_pro
 #参数:数据样本,对应样本的标签,batch_size
 #返回:返回网络参数和样本对应的特征。
 '''
-def load_class_in_feature_space(nb_cl, batch_size, scores, label_batch, loss_class, file_protoset_batch,op_feature_map, sess):
+def load_class_in_feature_space(nb_cl, batch_size, scores, label_batch, loss_class, file_xu_batch,op_feature_map, sess,file_num):
 	label_dico = []
 	Dtot = []
 	processed_file = []
-	for i in range(int(np.ceil(len(nb_cl*500) / batch_size) + 1)):#执行的次数
+	for i in range(int(np.ceil(file_num / batch_size) + 1)):#执行的次数
 		sc, l, loss,file_tmp, feat_map_tmp = sess.run(
-			[scores, label_batch, loss_class, file_protoset_batch,op_feature_map])#样本得分 一个batch的样本标签 交叉熵损失 特征输出
+			[scores, label_batch, loss_class, file_xu_batch,op_feature_map])#样本得分 一个batch的样本标签 交叉熵损失 特征输出
 		processed_file.extend(file_tmp)
 		label_dico.extend(l)
 		mapped_prototypes = feat_map_tmp[:, 0, 0, :]
