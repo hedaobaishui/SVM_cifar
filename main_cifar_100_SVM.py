@@ -234,7 +234,7 @@ for step_classes in [10]:#,5,10,20,50]:
             if itera>0:
                 for i in range(num_cl*itera):# 旧样本
                     class_index = order[itera * num_cl + i]
-                    files_protoset[class_index] = files_protoset[class_index][:,nb_protos_]
+                    files_protoset[class_index] = files_protoset[class_index][0:nb_protos_]
             protoset_tmp = []
             for i in range(10):
                 protoset_tmp.append([])
