@@ -228,7 +228,13 @@ for step_classes in [10]:#,5,10,20,50]:
                 cPickle.dump(cl_list, fp)
             with open('pic_name.pickle', 'wb') as fp:
                 cPickle.dump(pic_name, fp)
-            nb_protos_ = Num_all_protos /((itera+1)*num_cl)
+            nb_protos_ = np.ceil(Num_all_protos /((itera+1)*num_cl))
+
+            # 更新样本 也许有更好的策略
+            if itera>0:
+                for i in range(num_cl*itera):# 旧样本
+                    class_index = order[itera * num_cl + i]
+                    files_protoset[class_index] = files_protoset[class_index][:,nb_protos_]
             protoset_tmp = []
             for i in range(10):
                 protoset_tmp.append([])
