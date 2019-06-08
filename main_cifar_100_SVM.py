@@ -27,8 +27,8 @@ nb_groups  = int(100/nb_cl)
 nb_protos  = 20             # Number of prototypes per class at the end: total protoset memory/ total number of classes
 alph       = 5              # 在每个支持向量样本 周边抽取的样本数
 epochs     = 70             # Total number of epochs
-lr_old     = 2.             # Initial learning rate
-lr_strat   = [49, 63]       # Epochs where learning rate gets decreased
+lr_old     = 0.05             # Initial learning rate
+lr_strat   = [30,40]       # Epochs where learning rate gets decreased
 lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
 nb_runs    = 1              # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
@@ -53,9 +53,9 @@ for i in range(100):
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2,5,10,20,50]:
+for step_classes in [2]:#,5,10,20,50]:
     nb_cl = step_classes  # Classes per group
-    nb_groups = int(100 / nb_cl)
+    nb_groups = 2#int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
             epochs = 80
@@ -78,7 +78,7 @@ for step_classes in [2,5,10,20,50]:
 
         image_train, label_train,image_test, label_test = utils_data.load_data(Cifar_train_file, Cifar_test_file)
         #next batch
-        image_batch, label_batch_0, file_protoset_batch = utils_data.Prepare_train_data_batch(image_train,label_train,files_protoset,itera,order,nb_cl,batch_size)
+        image_batch, label_batch_0, file_xu_batch = utils_data.Prepare_train_data_batch(image_train,label_train,files_protoset,itera,order,nb_cl,batch_size)
         label_batch = tf.one_hot(label_batch_0, 100)
         #初次训练
         if itera == 0:
@@ -127,13 +127,13 @@ for step_classes in [2,5,10,20,50]:
             if itera > 0:
                 void0 = sess.run([(variables_graph[i]).assign(save_weights[i]) for i in range(len(variables_graph))])
                 void1 = sess.run(op_assign)
-
+            images_, label_, file_xu_ = utils_data.GetData(image_train, label_train, files_protoset, itera, order, nb_cl)
             print('training*****************************************************')
             print("Batch of classes {} out of {} batches".format(itera, 100 / nb_cl))
             for epoch in range(epochs):  # 训练模型
                 print('Epoch %i' % epoch)
                 # print(len(files_from_cl))
-                for i in range(int(np.ceil(500*nb_cl/ batch_size))):  # 5000/128
+                for i in range(int(np.ceil(len(label_)/ batch_size))):  # 5000/128
                     loss_class_val, _, sc, lab = sess.run([loss_class, train_step, scores, label_batch_0],
                                                           feed_dict={learning_rate: lr})
                     loss_batch.append(loss_class_val)
@@ -162,8 +162,8 @@ for step_classes in [2,5,10,20,50]:
             # copy weights to store network
             print('saving model')
             save_weights = sess.run([variables_graph[i] for i in range(len(variables_graph))])
-            save_model_path = save_path + 'step_'+str(step_classes)+'_classes'+'/NCM/'
-            utils_cifar.save_model('' + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
+            save_model_path = save_path + 'step_'+str(step_classes)+'_classes'+'/SVM/'
+            utils_cifar.save_model(save_model_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
                                     sess=sess)
 
         # Reset the graph
@@ -179,52 +179,54 @@ for step_classes in [2,5,10,20,50]:
         3.使用数据特征作为依据 进行样本选择
         4.
             '''
-        inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, save_path)
+        model_path = save_path + 'step_'+str(nb_cl)+'_classes/SVM/'
+        inits, scores, label_batch, loss_class, file_xu_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, model_path)
         with tf.Session(config=config) as sess:
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
             void3 = sess.run(inits)
 
             # Load the training samples of the current batch of classes in the feature space to apply the herding algorithm
+            #完成全部迭代
             Dtot, label_dico,file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size,scores, label_batch, loss_class,
-                                                                      file_string_batch,op_feature_map, sess)
+                                                                      file_xu_batch,op_feature_map, sess, len(label_))
             file_process = np.array([x.decode() for x in file_process])
             # Herding procedure : ranking of the potential exemplars
             print('Exemplars selection starting ...')
+
+            # Herding procedure : ranking of the potential exemplars
+            # 参考文献中预测是用 KNN 预测的
+            ###########################################
+            cl_feature_svm = []  # for SVM trees
+            label_for_svm = []
+            nu_cl_for_svm = []
+            cl_list = []
+            num_cl = nb_cl
+            # proto_file=files_protoset
+            # nb_protos_cl=nb_proto
+            nu_cl_itera = nb_cl
+            pic_name = []
             for iter_dico in range(nb_cl):
-                # Herding procedure : ranking of the potential exemplars
-                # 参考文献中预测是用 KNN 预测的
+                ind_cl = np.where(label_dico == order[iter_dico + itera * nb_cl])[0]  # ind_cl：序列
+                D = Dtot[:, ind_cl]  # 特征//特征是列保存的列号是类别 需要不同类别的特征
+                # nothing nothing;
+                cl_feature_svm.extend(D.T)  # 转秩为行向量
+                label_for_svm.extend([iter_dico + itera * nb_cl] * (len(ind_cl)))#标签 从0开始到100 可以通过order 确定其实际类别
+                nu_cl_for_svm.append(len(ind_cl))# 类别数量
+                cl_list.append((iter_dico + itera * nb_cl))
+                pic_name.extend(file_process[ind_cl])
+            coord.request_stop()
+            coord.join(threads)
+            cl_feature_svm = np.float32(cl_feature_svm)
+            label_for_svm = np.int32(label_for_svm)
+            # cl_list = np.unique(cl_list)
+            cl_list = [int(cl - itera * nb_cl) for cl in cl_list]#又从零开始编号
+            print('Exemplars selection starting by SVMT ...')
 
-                ###########################################
-                cl_feature_svm = []  # for SVM trees
-                label_for_svm = []
-                nu_cl_for_svm = []
-                cl_list = []
-                num_cl = nb_cl
-                # proto_file=files_protoset
-                # nb_protos_cl=nb_proto
-                nu_cl_itera = nb_cl
-                pic_name = []
-                for iter_dico in range(nb_cl):
-                    ind_cl = np.where(label_dico == order[iter_dico + itera * nb_cl])[0]  # ind_cl：序列
-                    D = Dtot[:, ind_cl]  # 特征//特征是列保存的列号是类别 需要不同类别的特征
-                    # nothing nothing;
-                    cl_feature_svm.extend(D.T)  # 转秩为行向量
-                    label_for_svm.extend([iter_dico + itera * nb_cl] * (len(ind_cl)))
-                    nu_cl_for_svm.append(len(ind_cl))
-                    cl_list.append((iter_dico + itera * nb_cl))
-                    pic_name.extend(file_process[ind_cl])
-                coord.request_stop()
-                coord.join(threads)
-                cl_feature_svm = np.float32(cl_feature_svm)
-                label_for_svm = np.int32(label_for_svm)
-                cl_list = [int(cl - itera * nb_cl) for cl in cl_list]
-                print('Exemplars selection starting by SVMT ...')
-
-                svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
-                                             files_protoset, itera, nb_protos, alph, nu_cl_itera, pic_name)
-                print(files_protoset)
-            # Reset the graph
+            files_protoset = svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
+                                         files_protoset, itera, nb_protos, alph, nu_cl_itera, pic_name)
+            print(files_protoset)
+        # Reset the graph
         tf.reset_default_graph()
 
         with open(str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:

@@ -19,7 +19,7 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 ##############Incremental Learning Setting######################
 gpu        = '0'
-batch_size = 128            # Batch size
+batch_size = 100            # Batch size
 n          = 5              # Set the depth of the architecture: n = 5 -> 32 layers (See He et al. paper)
 nb_val     = 0              # Validation samples per class
 nb_cl      = 10             # Classes per group
@@ -56,7 +56,7 @@ for i in range(100):
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2,5,10,20,50]:
+for step_classes in [10,20,50]:#2,5
     nb_cl = step_classes
     nb_groups = int(100/nb_cl)
     for itera in range(nb_groups):#100/nb_cl
