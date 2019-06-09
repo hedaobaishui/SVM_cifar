@@ -94,24 +94,30 @@ def GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl):
 		index = np.where(train_data_label[0:50000] == i)
 		images.append(train_data[index])
 		label.append(train_data_label[index])
-		file_xu.append(index)
+		file_xu.extend(index)
 	#添加保留集的数据信息
+	# xu_protoset[1]=[1,2,3,4,5]
+	# xu_protoset[2] = [2021, 2022,2023, 2024, 2025]
 	for i in range(100):
-		# 添加图像信息
-		images.append(train_data[xu_protoset[i]])
-		# 添加图像标签
-		label.append(train_data_label[xu_protoset[i]])
-
+		if len(xu_protoset[i]) is not 0:
+			# 添加图像信息
+			images.append(train_data[xu_protoset[i]])
+			# 添加图像标签
+			label.append(train_data_label[xu_protoset[i]])
+			file_xu.append(xu_protoset[i])
+		else:
+			continue
 	file_xu = np.concatenate(file_xu)
-	images = np.concatenate(images)
-	label = np.concatenate(label)
+	images  = np.concatenate(images)
+	label   = np.concatenate(label)
 	return images,label,file_xu
 def Prepare_train_data_batch(train_data,train_data_label,xu_protoset,itera,order,nb_cl,batch_size=128):
-	images,label,file_xu = GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
+	images, label, file_xu = GetData(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
 	images = tf.cast(images, tf.float32)
 	label = tf.cast(label, tf.int32)
+	file_xu = tf.cast(file_xu, tf.int32)
 	# 从tensor列表中按顺序或随机抽取一个tensor
-	input_queue = tf.train.slice_input_producer([images, label,file_xu], shuffle=True)
+	input_queue = tf.train.slice_input_producer([images, label, file_xu], shuffle=True)
 	image_batch, label_batch,file_xu_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
 	return image_batch, label_batch,file_xu_batch
 
@@ -131,7 +137,9 @@ def GetData_all(train_data,train_data_label,xu_protoset,itera,order,nb_cl):
 		images.append(train_data[xu_protoset[i]])
 		# 添加图像标签
 		label.append(train_data_label[xu_protoset[i]])
+		file_xu.append(xu_protoset[i])
 
+	file_xu = np.concatenate(file_xu)
 	file_xu = np.concatenate(file_xu)
 	images = np.concatenate(images)
 	label = np.concatenate(label)
@@ -141,6 +149,7 @@ def Prepare_train_data_batch_all(train_data,train_data_label,xu_protoset,itera,o
 	images,label,file_protoset = GetData_all(train_data,train_data_label,xu_protoset,itera,order,nb_cl)
 	images = tf.cast(images, tf.float32)
 	label = tf.cast(label, tf.int32)
+	file_protoset = tf.cast(file_protoset, tf.int32)
 	# 从tensor列表中按顺序或随机抽取一个tensor
 	input_queue = tf.train.slice_input_producer([images, label,file_protoset], shuffle=True)
 	image_batch, label_batch,file_protoset_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)
@@ -159,6 +168,7 @@ def GetTestData(test_data,test_data_label,itera,order,nb_cl):
 		file_xu.append(index)#图片在矩阵中的序号 可以视作文件名
 
 	file_xu = np.concatenate(file_xu)
+	file_xu = np.concatenate(file_xu)
 	images = np.concatenate(images)
 	label = np.concatenate(label)
 	return images,label,file_xu
@@ -167,6 +177,7 @@ def Prepare_test_data_batch(test_data,test_data_label,itera,order,nb_cl,batch_si
 	images,label,file_protoset = GetTestData(test_data,test_data_label,itera,order,nb_cl)
 	images = tf.cast(images, tf.float32)
 	label = tf.cast(label, tf.int32)
+	file_protoset = tf.cast(file_protoset, tf.int32)
 	# 从tensor列表中按顺序或随机抽取一个tensor
 	input_queue = tf.train.slice_input_producer([images, label,file_protoset], shuffle=True)
 	image_batch, label_batch,file_protoset_batch = tf.train.batch(input_queue, batch_size=batch_size, num_threads=8, capacity=128)

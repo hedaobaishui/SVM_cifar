@@ -48,7 +48,7 @@ def svm_load(name):
 #svm_recursion_vary_nu_proto : 抽样样本的数量在不断变化
 #nu_cl_itera: 每次迭代的样本数量
 # pic_name:样本的名字。也即图片名。
-def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_cl,proto_file,itera,nb_protos_cl,alph,nu_cl_itera,pic_name):#一般 num_cl= 2,5,10,20,50
+def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_cl,proto_file,itera,nb_protos_cl,alph,nu_cl_itera,pic_name):#一般 num_cl= 2,5,10,50
 
     #仅仅叶子节点
     if num_cl == 1:
