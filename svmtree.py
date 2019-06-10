@@ -35,6 +35,22 @@ def svm_load(name):
     svm = cv.ml.SVM_load(name)
     return svm
 
+#由于传入 SVM的特征和序号是无序的，所以需要重新编号。类别从小到大。
+# 仅仅保留新类别数据。
+
+def rest_numberoflabel(file_feature,label,filename,itera,nu_cl):
+    xu           = np.argsort(label)
+    label        = [label[x] for x in xu]
+    old_cl_label = [label[x]<itera*nu_cl for x in range(len(label))]
+
+    file_feature = [file_feature[x] for x in xu]
+    filename     = [filename[x] for x in xu]
+    #保留新类别样本
+    file_feature = file_feature[old_cl_label:,:]
+    filename     = filename[old_cl_label:]
+    return label, file_feature,filename
+
+
 #递归实现 SVMT
 #file_feature: 从卷积层输出的特征 每一行是一个样本
 #label：特征的标签。是类别标签[0,1,2,3,4.....1000]
@@ -48,18 +64,19 @@ def svm_load(name):
 #svm_recursion_vary_nu_proto : 抽样样本的数量在不断变化
 #nu_cl_itera: 每次迭代的样本数量
 # pic_name:样本的名字。也即图片名。
-def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_cl,proto_file,itera,nb_protos_cl,alph,nu_cl_itera,pic_name):#一般 num_cl= 2,5,10,50
+
+def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_cl,proto_file,nb_protos_cl,alph,pic_name):#一般 num_cl= 2,5,10,50
 
     #仅仅叶子节点
     if num_cl == 1:
         step=0
         #缺多少补多少样本
         #判断当前的类别
-        cl_now=label[0]#当前类
-        while len(proto_file[cl_now]) < nb_protos_cl and step<1.1*nb_protos_cl:
+        cl_now=label[0] #当前类
+        while len(proto_file[cl_now]) < nb_protos_cl and step<len(label):
             if pic_name[step] not in proto_file[cl_now]:
-                proto_file[cl_now].append(pic_name[step])
-                step=step+1
+                proto_file[cl_now].extend(pic_name[step])
+            step=step+1
         return proto_file
 
     #label:是样本来别标签;还需要加-1,1标签
@@ -72,8 +89,8 @@ def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_
     #样本的数量 要不要改变nu_cl_for_svm的数量
     #获得当前原本的类别数
     #获得当前样本的数量
-    num_file_left=np.sum(nu_cl_for_svm[cl]  for cl in cl_list[0:num_cl_left])
-    num_file_right = np.sum(nu_cl_for_svm[cl] for cl in cl_list[num_cl_left:])
+    num_file_left=np.sum(nu_cl_for_svm[cl]  for cl in range(num_cl_left))
+    num_file_right = np.sum(nu_cl_for_svm[cl] for cl in range(num_cl_left,num_cl_left+num_cl_right))
     label_01=np.array([-1]*num_file_left+[1]*num_file_right)
     #样本的标签
     #label 存在样本标签
@@ -91,20 +108,16 @@ def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_
         loc_svc_list = []
         for lines in file_feature: #根据样本所属集合找到样本的类别
             if operator.eq(lines.tolist(),svc.tolist()):#属于哪一类的特征
-                loc_svc_list.append(loction)
+                loc_svc_list.extend([loction])
             loction+=1
         #loc_svc 可能是list
         for loc_svc in loc_svc_list:
-            svc_true_label=label[loc_svc]# 找到样本的类别
+            svc_true_label = label[loc_svc]# 找到样本的类别
             #svc_true_label=itera*num_cl+num_cl
             #在SVC 周围选取一些样本5个；使用曼哈顿距离选取。
             #提取该类的样本：
-            itera_label=svc_true_label-(itera*nu_cl_itera)
-            #获取当前类的特征数据
-            if itera_label>0:
-                file_now = file_feature[np.sum(nu_cl_for_svm[0:itera_label]):np.sum(nu_cl_for_svm[0:itera_label+1]), :]
-            else:#==0
-                file_now=file_feature[0:nu_cl_for_svm[itera_label],:]
+            ind_file_now = np.where(label == svc_true_label)[0]
+            file_now = file_feature[ind_file_now,:]
             #要在图片信息和序号之间做一个匹配；
             #可以建立一个字典；
             #通过特征选择样本。
@@ -115,11 +128,12 @@ def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_
             label_sort=np.argsort(dis)#[2,4,3,1]返回距离原位置的标签返回[3,0,2,1]
             #取样本
             #应该直接将图片名称加入 feat 是特征: 还要找到特征对应的图片名称。
-            prototmp=label_sort[0:alph]# 取5个样本
+            prototmp = label_sort[0:alph]# 取5个样本
+            ind_proto = ind_file_now[prototmp]
             #添加的是当前训练样本的序号：
-            for proto in prototmp:
-                if len(proto_file[itera * nu_cl_itera + itera_label]) < nb_protos_cl:
-                    proto_file[itera*nu_cl_itera +itera_label].append(pic_name[proto+int(np.sum(nu_cl_for_svm[0:itera_label]))])#
+            for proto in ind_proto:
+                if len(proto_file[svc_true_label]) < nb_protos_cl:
+                    proto_file[svc_true_label].append(pic_name[proto])#
                 else:
                     break
 
@@ -127,14 +141,14 @@ def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_
         step=0
         #缺多少补多少样本
         #判断当前的类别
-        label_ave=np.sum(label)/(len(label))
-        labe1_l_r=[int(np.floor(label_ave)),int(np.ceil(label_ave))]
-        for leaf in labe1_l_r:#两个类别都需要填满样本
-           while len(proto_file[leaf]) < nb_protos_cl and step<1.1*nb_protos_cl:
-                 if pic_name[step+int(np.sum(nu_cl_for_svm[0:leaf]))] not in proto_file[leaf]:
-                      proto_file[leaf].append(pic_name[step+int(np.sum(nu_cl_for_svm[0:leaf]))])
+        class_2 = [cl_list[0],cl_list[1]]
+        for leaf_class in class_2:#两个类别都需要填满样本
+           while len(proto_file[leaf_class]) < nb_protos_cl and step<np.sum(label):
+                 if pic_name[step] not in proto_file[leaf_class]:
+                      proto_file[leaf_class].append(pic_name[step])
                  step=step+1
         return proto_file
+
 
     #更新样本需要处理的数据:
     file_feature_left=file_feature[0:num_file_left,:]
@@ -145,9 +159,10 @@ def svm_recursion_fixed_nu_proto(file_feature, label,nu_cl_for_svm, cl_list,num_
     label_right=label[num_file_left:]
     cl_list_left=cl_list[0:num_cl_left]
     cl_list_right=cl_list[num_cl_left:]
-
-    svm_recursion_fixed_nu_proto(file_feature_left, label_left,nu_cl_for_svm,cl_list_left,num_cl_left,proto_file,itera,nb_protos_cl,alph,nu_cl_itera,pic_name_left)
-    svm_recursion_fixed_nu_proto(file_feature_right, label_right,nu_cl_for_svm,cl_list_right,num_cl_right,proto_file,itera,nb_protos_cl,alph,nu_cl_itera,pic_name_right)
+    nu_cl_for_svm_left = nu_cl_for_svm[0:num_cl_left]
+    nu_cl_for_svm_right =nu_cl_for_svm[num_cl_left:]
+    svm_recursion_fixed_nu_proto(file_feature_left, label_left,nu_cl_for_svm_left,cl_list_left,num_cl_left,proto_file,nb_protos_cl,alph,pic_name_left)
+    svm_recursion_fixed_nu_proto(file_feature_right, label_right,nu_cl_for_svm_right,cl_list_right,num_cl_right,proto_file,nb_protos_cl,alph,pic_name_right)
 
 #没有实现
 def svm_recursion_vary_nu_proto(file_feature, label,nu_cl_for_svm, num_cl,proto_file,itera,nb_protos_cl):#一般 num_cl= 2,5,10,50
@@ -175,5 +190,5 @@ if __name__== '__main__':
     cl_list=[0,1,2]#
     #先要预处理
     cl_list=[int(cl-itera*num_cl) for cl in cl_list]
-    svm_recursion_fixed_nu_proto(feature_test, label_svm_test, nu_cl_for_svm_test,cl_list, num_cl, proto_file, itera, nb_protos_cl,alph,nu_cl_itera,pic_name)
+    svm_recursion_fixed_nu_proto(feature_test, label_svm_test, nu_cl_for_svm_test,cl_list, num_cl, proto_file,  nb_protos_cl,alph,pic_name)
     print(proto_file)

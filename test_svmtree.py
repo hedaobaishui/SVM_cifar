@@ -21,13 +21,10 @@ label_for_svm  = cPickle.load(open('label_for_svm.pickle', 'rb'))
 nu_cl_for_svm  = cPickle.load(open('nu_cl_for_svm.pickle', 'rb'))
 cl_list        = cPickle.load(open('cl_list.pickle', 'rb'))
 pic_name       = cPickle.load(open('pic_name.pickle', 'rb'))
-protoset_tmp = []
-for i in range(10):
-    protoset_tmp.append([])
+files_protoset = []
+for i in range(100):
+    files_protoset.append([])
 
 svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
-                                     protoset_tmp, itera, nb_protos, alph, nu_cl_itera, pic_name)
-for i in range(num_cl):
-    class_index = order[itera*num_cl+i]
-    files_protoset[class_index] = protoset_tmp[i]
+                                     files_protoset,  nb_protos, alph, pic_name)
 print(files_protoset)
