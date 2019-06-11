@@ -54,7 +54,7 @@ for i in range(100):
 #执行多次.................................
 for step_classes in [10]:#,5,10,20,50]:
     nb_cl = step_classes  # Classes per group
-    nb_groups = 2#int(100 / nb_cl)
+    nb_groups = int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
             epochs = 3
@@ -206,9 +206,9 @@ for step_classes in [10]:#,5,10,20,50]:
                 D = Dtot[:, ind_cl]  # 特征//特征是列保存的列号是类别 需要不同类别的特征
                 # nothing nothing;
                 cl_feature_svm.extend(D.T)  # 转秩为行向量
-                label_for_svm.extend([iter_dico + itera * nb_cl] * (len(ind_cl)))#标签 从0开始到100 可以通过order 确定其实际类别
+                label_for_svm.extend([order[iter_dico + itera * nb_cl]] * (len(ind_cl)))#标签 从0开始到100 可以通过order 确定其实际类别
                 nu_cl_for_svm.append(len(ind_cl))# 类别数量
-                cl_list.append((iter_dico + itera * nb_cl))
+                cl_list.append(order[iter_dico + itera * nb_cl])
                 pic_name.extend(file_process[ind_cl])
             coord.request_stop()
             coord.join(threads)
@@ -235,15 +235,8 @@ for step_classes in [10]:#,5,10,20,50]:
                 for i in range(num_cl*itera):# 旧样本
                     class_index = order[itera * num_cl + i]
                     files_protoset[class_index] = files_protoset[class_index][0:nb_protos_]
-            protoset_tmp = []
-            for i in range(10):
-                protoset_tmp.append([])
             svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
-                                         files_protoset, itera, nb_protos_, alph, nu_cl_itera, pic_name)
-            for i in range(num_cl):
-                class_index = order[itera * num_cl + i]
-                files_protoset[class_index] = protoset_tmp[i]
-            print(files_protoset)
+                                                 files_protoset, itera, nb_protos_, alph, nu_cl_itera, pic_name)
         # Reset the graph
         tf.reset_default_graph()
 
