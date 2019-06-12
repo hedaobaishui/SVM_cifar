@@ -6,7 +6,7 @@ var1=[logit1.var() for logit1 in logit]
 print(var1)
 logitnew = logit.T
 print(logit)
-logit_tmp =  np.argsort(logitnew.T, axis=1)[:, -1:]
+logit_tmp =  np.argsort(logit, axis=1)[:, -1:]
 print(logit_tmp)
 label_zip = zip(label, logit_tmp)
 ind_get = label[[ll in best for ll, best in label_zip]]

@@ -202,10 +202,11 @@ for step_classes in [2,10]:#5,20,50]:
                 label = label_dico[ind_cl]
                 # file_now = file_process[ind_cl]
                 #Top5 分类正确
-                label_zip = zip(label, np.argsort(logit, axis=1)[:, -5:])
-
+                pre_label =np.argsort(logit, axis=1)[:, -5:]
+                label_zip = zip(label, pre_label)
+                T_pre_xu = [ll in best for ll,best in label_zip]#预测正确的样本序号
                 #分类正确的样本的索引
-                ind_get = ind_cl[[ll in best for ll,best in label_zip]]
+                ind_get = ind_cl[T_pre_xu]
                 logit = logit[ind_get,:]#分类正确的样本的 score
                 #计算logit 方差 选择方差大的样本添加。
                 ind_last = np.argsort([logit_.var() for logit_ in logit])
