@@ -8,7 +8,7 @@ import string
 import random
 import numpy as np
 import utils_data
-
+import set_data_path
 try:
 	import cPickle
 except:
@@ -19,22 +19,24 @@ config.gpu_options.allow_growth = True
 ##############Incremental Learning Setting######################
 gpu        = '0'
 batch_size = 128            # Batch size
+logit_thta = 0.2            # 分类错误的样本占分类正确样本的数量
 n          = 5              # Set the depth of the architecture: n = 5 -> 32 layers (See He et al. paper)
 nb_val     = 0              # Validation samples per class
 nb_cl      = 10             # Classes per group
 nb_groups  = int(100/nb_cl)
-nb_protos  = 20             # Number of prototypes per class at the end: total protoset memory/ total number of classes
-epochs     = 70             # Total number of epochs
-lr_old     = 2.             # Initial learning rate
-lr_strat   = [49, 63]       # Epochs where learning rate gets decreased
+nb_protos  = 10             # Number of prototypes per class at the end: total protoset memory/ total number of classes
+epochs     = 50             # Total number of epochs
+lr_old     = 0.05             # Initial learning rate
+lr_strat   = [30, 40]       # Epochs where learning rate gets decreased
 lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
 nb_runs    = 1              # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
 np.random.seed(1993)        # Fix the random seed
-Cifar_train_file  = 'F:/Dataset/ILSVRC2012/cifar-100-python/train'
-#需要修改
-Cifar_test_file   = 'F:/Dataset/ILSVRC2012/cifar-100-python/test'#需要修改
-save_path         = './model/'
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+Cifar_train_file, Cifar_test_file, save_path = set_data_path.get_data_path()
+
 ################################################################
 
 #loading dataset
@@ -51,14 +53,15 @@ for i in range(100):
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2,5,10,20,50]:
+for step_classes in [2,10]:#5,20,50]:
+    save_model_path = save_path + 'step_' + str(step_classes) + '_classes' + '/logits/'
     nb_cl = step_classes  # Classes per group
     nb_groups = int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
-            epochs = 80
+            epochs = 1
         else:
-            epochs = 50
+            epochs = 1
         """
         1、先构建网络，定义一些变量
         2、构建损失函数
@@ -160,8 +163,8 @@ for step_classes in [2,5,10,20,50]:
             # copy weights to store network
             print('saving model')
             save_weights = sess.run([variables_graph[i] for i in range(len(variables_graph))])
-            save_model_path = save_path + 'step_'+str(step_classes)+'_classes'+'/NCM/'
-            utils_cifar.save_model('' + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
+
+            utils_cifar.save_model(save_model_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
                                     sess=sess)
 
         # Reset the graph
@@ -177,32 +180,34 @@ for step_classes in [2,5,10,20,50]:
         3.使用数据特征作为依据 进行样本选择
         4.
             '''
-        inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, save_path)
+
+        inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, save_model_path)
         with tf.Session(config=config) as sess:
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
             void3 = sess.run(inits)
 
             # Load the training samples of the current batch of classes in the feature space to apply the herding algorithm
-            Dtot, label_dico,file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size,scores, label_batch, loss_class,
-                                                                      file_string_batch,op_feature_map, sess)
-            file_process = np.array([x.decode() for x in file_process])
+            Logits, label_dico,file_process = utils_data.load_class_in_feature_space_logits(nb_cl, batch_size,scores, label_batch, loss_class,
+                                                                      file_string_batch,op_feature_map, sess,file_num=int(nb_protos*100+nb_cl*500))
+            #file_process = np.array([x.decode() for x in file_process])
             # Herding procedure : ranking of the potential exemplars
             print('Exemplars selection starting ...')
             for iter_dico in range(nb_cl):
                 ind_cl = np.where(label_dico == order[iter_dico + itera * nb_cl])[0]
-                D = Dtot[:, ind_cl]
-                files_iter = file_process[ind_cl]
+                logit = Logits[:, ind_cl]
+                label = label_dico[ind_cl]
+                ind_get = ([ll in best for ll, best in zip(label, np.argsort(sc, axis=1)[:, -5:])])
                 mu = np.mean(D, axis=1)
                 w_t = mu
                 step_t = 0
-                while not(len(files_protoset[itera*nb_cl+iter_dico]) == nb_protos_cl) and step_t<1.1*nb_protos_cl:
+                while (len(files_protoset[order[itera*nb_cl+iter_dico]]) < nb_protos_cl): #and step_t<1.1*nb_protos_cl:
                     tmp_t = np.dot(w_t, D) #一维数组 内积  二维数组：矩阵积
                     ind_max = np.argmax(tmp_t) #取出数组最大值的索引
-                    w_t = w_t + mu - D[:, ind_max] #
+                    w_t = w_t + mu - D[:, ind_max] #(公式四)：计算与类均值的接近程度
                     step_t += 1
-                    if files_iter[ind_max] not in files_protoset[itera * nb_cl + iter_dico]:#这里要添加的是样本的序号
-                        files_protoset[itera * nb_cl + iter_dico].append(files_iter[ind_max])
+                    if files_iter[ind_max] not in files_protoset[order[itera * nb_cl + iter_dico]]:#这里要添加的是样本的序号
+                        files_protoset[order[iter_dico + itera * nb_cl]].append(files_iter[ind_max])
                         #存储样本名 还是样本数据
 
             coord.request_stop()
@@ -216,7 +221,7 @@ for step_classes in [2,5,10,20,50]:
         print('Computing theoretical class means for NCM and mean-of-exemplars for iCaRL ...')
         for iteration2 in range(itera + 1):
             inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network(
-                'train',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_path)
+                'train',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_model_path)
 
             with tf.Session(config=config) as sess:
                 coord = tf.train.Coordinator()
@@ -225,8 +230,8 @@ for step_classes in [2,5,10,20,50]:
 
                 Dtot, label_dico, file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size, scores, label_batch,
                                                                           loss_class,
-                                                                          file_string_batch,op_feature_map, sess)
-                file_process = np.array([x.decode() for x in file_process])
+                                                                          file_string_batch,op_feature_map, sess,file_num=int(nb_protos*100+nb_cl*500))
+                # file_process = np.array([x.decode() for x in file_process])
                 for iter_dico in range(nb_cl):
                     ind_cl = np.where(label_dico == order[iter_dico + iteration2 * nb_cl])[0]
                     D = Dtot[:, ind_cl]
@@ -243,9 +248,13 @@ for step_classes in [2,5,10,20,50]:
                     # iCaRL approximated mean (mean-of-exemplars)
                     # use only the first exemplars of the old classes:
                     # nb_protos_cl controls the number of exemplars per class
-                    ind_herding = np.array(
-                        [np.where(files_iter == files_protoset[iteration2 * nb_cl + iter_dico][i])[0][0] for i in
-                         range(min(nb_protos_cl, len(files_protoset[iteration2 * nb_cl + iter_dico])))])
+                    ind_herding = []
+                    for i in range(min(nb_protos_cl, len(files_protoset[order[iter_dico + iteration2 * nb_cl]]))):
+                        ind_tmp = np.where(files_iter == files_protoset[order[iter_dico + iteration2 * nb_cl]][i])
+                        ind_herding.extend(ind_tmp[0])
+                    # ind_herding = np.array(
+                    #     [np.where(files_iter == files_protoset[order[iter_dico + iteration2 * nb_cl]][i])[0][0] for i in
+                    #      range(min(nb_protos_cl, len(files_protoset[order[iter_dico + iteration2 * nb_cl]])))])
                     D_tmp = D[:, ind_herding]
                     class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera] = np.mean(D_tmp, axis=1)
                     class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera] /= np.linalg.norm(
@@ -259,7 +268,7 @@ for step_classes in [2,5,10,20,50]:
 
         # Pickle class means and protoset
         # 每个增量阶段的class_means 不相同
-        with open(str(nb_cl) + 'class_means'+str(itera)+'.pickle', 'wb') as fp:
+        with open(save_model_path+str(nb_cl) + 'class_means'+str(itera)+'.pickle', 'wb') as fp:
             cPickle.dump(class_means, fp)
-        with open(str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:
+        with open(save_model_path+str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:
             cPickle.dump(files_protoset, fp)

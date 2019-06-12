@@ -42,20 +42,20 @@ Cifar_train_file, Cifar_test_file, save_path = set_data_path.get_data_path()
 print("\n")
 # Initialization
 dictionary_size   = 500-nb_val
-loss_batch        = []
-class_means       = np.zeros((128,100,2,nb_groups))
-files_protoset     = []
 
-for i in range(100):
-    files_protoset.append([])
 #top1_acc_list_cumul = np.zeros((100/nb_cl,3,nb_runs))
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2,5,10,20,50]:
+for step_classes in [2,10]:#5,20,50]:
     save_model_path = save_path + 'step_' + str(step_classes) + '_classes' + '/NCM/'
     nb_cl = step_classes  # Classes per group
     nb_groups = int(100 / nb_cl)
+    loss_batch = []
+    class_means = np.zeros((128, 100, 2, nb_groups))
+    files_protoset = []
+    for i in range(100):
+        files_protoset.append([])
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
             epochs = 80
@@ -199,13 +199,13 @@ for step_classes in [2,5,10,20,50]:
                 mu = np.mean(D, axis=1)
                 w_t = mu
                 step_t = 0
-                while not(len(files_protoset[itera*nb_cl+iter_dico]) == nb_protos_cl) and step_t<1.1*nb_protos_cl:
+                while (len(files_protoset[order[itera*nb_cl+iter_dico]]) < nb_protos_cl): #and step_t<1.1*nb_protos_cl:
                     tmp_t = np.dot(w_t, D) #一维数组 内积  二维数组：矩阵积
                     ind_max = np.argmax(tmp_t) #取出数组最大值的索引
-                    w_t = w_t + mu - D[:, ind_max] #
+                    w_t = w_t + mu - D[:, ind_max] #(公式四)：计算与类均值的接近程度
                     step_t += 1
-                    if files_iter[ind_max] not in files_protoset[itera * nb_cl + iter_dico]:#这里要添加的是样本的序号
-                        files_protoset[itera * nb_cl + iter_dico].append(files_iter[ind_max])
+                    if files_iter[ind_max] not in files_protoset[order[itera * nb_cl + iter_dico]]:#这里要添加的是样本的序号
+                        files_protoset[order[iter_dico + itera * nb_cl]].append(files_iter[ind_max])
                         #存储样本名 还是样本数据
 
             coord.request_stop()
@@ -228,8 +228,8 @@ for step_classes in [2,5,10,20,50]:
 
                 Dtot, label_dico, file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size, scores, label_batch,
                                                                           loss_class,
-                                                                          file_string_batch,op_feature_map, sess)
-                file_process = np.array([x.decode() for x in file_process])
+                                                                          file_string_batch,op_feature_map, sess,file_num=int(nb_protos*100+nb_cl*500))
+                # file_process = np.array([x.decode() for x in file_process])
                 for iter_dico in range(nb_cl):
                     ind_cl = np.where(label_dico == order[iter_dico + iteration2 * nb_cl])[0]
                     D = Dtot[:, ind_cl]
@@ -246,9 +246,13 @@ for step_classes in [2,5,10,20,50]:
                     # iCaRL approximated mean (mean-of-exemplars)
                     # use only the first exemplars of the old classes:
                     # nb_protos_cl controls the number of exemplars per class
-                    ind_herding = np.array(
-                        [np.where(files_iter == files_protoset[iteration2 * nb_cl + iter_dico][i])[0][0] for i in
-                         range(min(nb_protos_cl, len(files_protoset[iteration2 * nb_cl + iter_dico])))])
+                    ind_herding = []
+                    for i in range(min(nb_protos_cl, len(files_protoset[order[iter_dico + iteration2 * nb_cl]]))):
+                        ind_tmp = np.where(files_iter == files_protoset[order[iter_dico + iteration2 * nb_cl]][i])
+                        ind_herding.extend(ind_tmp[0])
+                    # ind_herding = np.array(
+                    #     [np.where(files_iter == files_protoset[order[iter_dico + iteration2 * nb_cl]][i])[0][0] for i in
+                    #      range(min(nb_protos_cl, len(files_protoset[order[iter_dico + iteration2 * nb_cl]])))])
                     D_tmp = D[:, ind_herding]
                     class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera] = np.mean(D_tmp, axis=1)
                     class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera] /= np.linalg.norm(

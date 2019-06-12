@@ -237,3 +237,21 @@ def load_class_in_feature_space(nb_cl, batch_size, scores, label_batch, loss_cla
 	label_dico = np.array(label_dico)
 	processed_file = np.array(processed_file)
 	return Dtot, label_dico, processed_file
+
+def load_class_in_feature_space_logits(nb_cl, batch_size, scores, label_batch, loss_class, file_xu_batch,op_feature_map, sess,file_num):
+	label_dico = []
+	logits = []
+	processed_file = []
+	scores = tf.sparse_softmax(0)
+	for i in range(int(np.ceil(file_num / batch_size) + 1)):#执行的次数
+		sc, l, loss,file_tmp, feat_map_tmp = sess.run(
+			[scores, label_batch, loss_class, file_xu_batch,op_feature_map])#样本得分 一个batch的样本标签 交叉熵损失 特征输出
+		processed_file.extend(file_tmp)
+		label_dico.extend(l)
+		sc_ = sc[:,0,0,:]
+		logits.append(sc.T)
+
+	logits = np.concatenate(logits, axis=1)
+	label_dico = np.array(label_dico)
+	processed_file = np.array(processed_file)
+	return logits, label_dico, processed_file

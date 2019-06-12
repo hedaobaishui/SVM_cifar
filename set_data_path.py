@@ -12,12 +12,12 @@ def get_data_path():
     if platform.system() == 'Windows':
         Cifar_train_file = 'F:/Dataset/ILSVRC2012/cifar-100-python/train'
         # 需要修改
-        Cifar_test_file = 'F:/Dataset/ILSVRC2012/cifar-100-python/test'  # 需要修改
+        Cifar_test_file = 'F:/Dataset/ILSVRC2012/cifar-100-python/test'
         save_path = './model/'
     elif platform.system() == 'Linux':
         Cifar_train_file = '/home/magic/project/virtualenv/TF/cifar-100-python/train'
         # 需要修改
-        Cifar_test_file = '/home/magic/project/virtualenv/TF/cifar-100-python/test'  # 需要修改
+        Cifar_test_file = '/home/magic/project/virtualenv/TF/cifar-100-python/test'
         save_path = './model/'
     return Cifar_train_file, Cifar_test_file, save_path
 
