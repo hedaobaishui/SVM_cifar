@@ -27,9 +27,9 @@ nb_groups  = int(100/nb_cl)
 Num_all_protos =1000        # 保留集所有样本的数量
 nb_protos  = 20             # Number of prototypes per class at the end: total protoset memory/ total number of classes
 alph       = 5              # 在每个支持向量样本 周边抽取的样本数
-epochs     = 70             # Total number of epochs
+epochs     = 80             # Total number of epochs
 lr_old     = 0.05             # Initial learning rate
-lr_strat   = [1,2]       # Epochs where learning rate gets decreased
+lr_strat   = [30,40]       # Epochs where learning rate gets decreased
 lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
 nb_runs    = 1              # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
@@ -52,14 +52,14 @@ for i in range(100):
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [10]:#,5,10,20,50]:
+for step_classes in [2,5,20,50]:#]:,10
     nb_cl = step_classes  # Classes per group
     nb_groups = int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
-            epochs = 3
+            epochs = 80
         else:
-            epochs = 3
+            epochs = 50
         """
         1、先构建网络，定义一些变量
         2、构建损失函数
@@ -228,15 +228,15 @@ for step_classes in [10]:#,5,10,20,50]:
                 cPickle.dump(cl_list, fp)
             with open('pic_name.pickle', 'wb') as fp:
                 cPickle.dump(pic_name, fp)
-            nb_protos_ = np.ceil(Num_all_protos /((itera+1)*num_cl))
+            nb_protos_ = int(np.ceil(Num_all_protos /((itera+1)*num_cl)))
 
             # 更新样本 也许有更好的策略
             if itera>0:
-                for i in range(num_cl*itera):# 旧样本
-                    class_index = order[itera * num_cl + i]
+                for i in range(num_cl*(itera+1)):# 旧样本
+                    class_index = order[i]
                     files_protoset[class_index] = files_protoset[class_index][0:nb_protos_]
             svmtree.svm_recursion_fixed_nu_proto(cl_feature_svm, label_for_svm, nu_cl_for_svm, cl_list, num_cl,
-                                                 files_protoset, itera, nb_protos_, alph, nu_cl_itera, pic_name)
+                                                 files_protoset, nb_protos_, alph, pic_name)
         # Reset the graph
         tf.reset_default_graph()
 

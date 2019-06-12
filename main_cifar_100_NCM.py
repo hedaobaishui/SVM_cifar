@@ -8,7 +8,7 @@ import string
 import random
 import numpy as np
 import utils_data
-
+import set_data_path
 try:
 	import cPickle
 except:
@@ -23,18 +23,19 @@ n          = 5              # Set the depth of the architecture: n = 5 -> 32 lay
 nb_val     = 0              # Validation samples per class
 nb_cl      = 10             # Classes per group
 nb_groups  = int(100/nb_cl)
-nb_protos  = 20             # Number of prototypes per class at the end: total protoset memory/ total number of classes
-epochs     = 70             # Total number of epochs
-lr_old     = 2.             # Initial learning rate
-lr_strat   = [49, 63]       # Epochs where learning rate gets decreased
+nb_protos  = 10             # Number of prototypes per class at the end: total protoset memory/ total number of classes
+epochs     = 50             # Total number of epochs
+lr_old     = 0.05             # Initial learning rate
+lr_strat   = [30, 40]       # Epochs where learning rate gets decreased
 lr_factor  = 5.             # Learning rate decrease factor
 wght_decay = 0.00001        # Weight Decay
 nb_runs    = 1              # 总的执行次数 Number of runs (random ordering of classes at each run)10*10=100类
 np.random.seed(1993)        # Fix the random seed
-Cifar_train_file  = 'F:/Dataset/ILSVRC2012/cifar-100-python/train'
-#需要修改
-Cifar_test_file   = 'F:/Dataset/ILSVRC2012/cifar-100-python/test'#需要修改
-save_path         = './model/'
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+Cifar_train_file, Cifar_test_file, save_path = set_data_path.get_data_path()
+
 ################################################################
 
 #loading dataset
@@ -52,6 +53,7 @@ for i in range(100):
 
 #执行多次.................................
 for step_classes in [2,5,10,20,50]:
+    save_model_path = save_path + 'step_' + str(step_classes) + '_classes' + '/NCM/'
     nb_cl = step_classes  # Classes per group
     nb_groups = int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
@@ -160,8 +162,8 @@ for step_classes in [2,5,10,20,50]:
             # copy weights to store network
             print('saving model')
             save_weights = sess.run([variables_graph[i] for i in range(len(variables_graph))])
-            save_model_path = save_path + 'step_'+str(step_classes)+'_classes'+'/NCM/'
-            utils_cifar.save_model('' + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
+
+            utils_cifar.save_model(save_model_path + 'model-iteration' + str(nb_cl) + '-%i.pickle' % itera, scope='ResNet34',
                                     sess=sess)
 
         # Reset the graph
@@ -177,7 +179,8 @@ for step_classes in [2,5,10,20,50]:
         3.使用数据特征作为依据 进行样本选择
         4.
             '''
-        inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, save_path)
+
+        inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network('train',image_train,label_train, files_protoset,itera, batch_size, order,nb_cl, save_model_path)
         with tf.Session(config=config) as sess:
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
@@ -185,8 +188,8 @@ for step_classes in [2,5,10,20,50]:
 
             # Load the training samples of the current batch of classes in the feature space to apply the herding algorithm
             Dtot, label_dico,file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size,scores, label_batch, loss_class,
-                                                                      file_string_batch,op_feature_map, sess)
-            file_process = np.array([x.decode() for x in file_process])
+                                                                      file_string_batch,op_feature_map, sess,file_num=int(nb_protos*100+nb_cl*500))
+            #file_process = np.array([x.decode() for x in file_process])
             # Herding procedure : ranking of the potential exemplars
             print('Exemplars selection starting ...')
             for iter_dico in range(nb_cl):
@@ -216,7 +219,7 @@ for step_classes in [2,5,10,20,50]:
         print('Computing theoretical class means for NCM and mean-of-exemplars for iCaRL ...')
         for iteration2 in range(itera + 1):
             inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network(
-                'train',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_path)
+                'train',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_model_path)
 
             with tf.Session(config=config) as sess:
                 coord = tf.train.Coordinator()
@@ -259,7 +262,7 @@ for step_classes in [2,5,10,20,50]:
 
         # Pickle class means and protoset
         # 每个增量阶段的class_means 不相同
-        with open(str(nb_cl) + 'class_means'+str(itera)+'.pickle', 'wb') as fp:
+        with open(save_model_path+str(nb_cl) + 'class_means'+str(itera)+'.pickle', 'wb') as fp:
             cPickle.dump(class_means, fp)
-        with open(str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:
+        with open(save_model_path+str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:
             cPickle.dump(files_protoset, fp)
