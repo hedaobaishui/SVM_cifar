@@ -186,89 +186,38 @@ for step_classes in [2,10]:#5,20,50]:
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
             void3 = sess.run(inits)
-
+            if itera == 0:
+                file_num = int(nb_cl * 500)
+            else:
+                file_num = int(nb_protos * 100 + nb_cl * 500)
             # Load the training samples of the current batch of classes in the feature space to apply the herding algorithm
             Logits, label_dico,file_process = utils_data.load_class_in_feature_space_logits(nb_cl, batch_size,scores, label_batch, loss_class,
-                                                                      file_string_batch,op_feature_map, sess,file_num=int(nb_protos*100+nb_cl*500))
+                                                                      file_string_batch,op_feature_map, sess,file_num)
             #file_process = np.array([x.decode() for x in file_process])
             # Herding procedure : ranking of the potential exemplars
             print('Exemplars selection starting ...')
             for iter_dico in range(nb_cl):
                 ind_cl = np.where(label_dico == order[iter_dico + itera * nb_cl])[0]
-                logit = Logits[:, ind_cl]
+                logit = Logits[ind_cl,:]
                 label = label_dico[ind_cl]
-                ind_get = ([ll in best for ll, best in zip(label, np.argsort(sc, axis=1)[:, -5:])])
-                mu = np.mean(D, axis=1)
-                w_t = mu
-                step_t = 0
-                while (len(files_protoset[order[itera*nb_cl+iter_dico]]) < nb_protos_cl): #and step_t<1.1*nb_protos_cl:
-                    tmp_t = np.dot(w_t, D) #一维数组 内积  二维数组：矩阵积
-                    ind_max = np.argmax(tmp_t) #取出数组最大值的索引
-                    w_t = w_t + mu - D[:, ind_max] #(公式四)：计算与类均值的接近程度
-                    step_t += 1
-                    if files_iter[ind_max] not in files_protoset[order[itera * nb_cl + iter_dico]]:#这里要添加的是样本的序号
-                        files_protoset[order[iter_dico + itera * nb_cl]].append(files_iter[ind_max])
-                        #存储样本名 还是样本数据
+                # file_now = file_process[ind_cl]
+                #Top5 分类正确
+                label_zip = zip(label, np.argsort(logit, axis=1)[:, -5:])
 
+                #分类正确的样本的索引
+                ind_get = ind_cl[[ll in best for ll,best in label_zip]]
+                logit = logit[ind_get,:]#分类正确的样本的 score
+                #计算logit 方差 选择方差大的样本添加。
+                ind_last = np.argsort([logit_.var() for logit_ in logit])
+                #ind_get = ([ll in best for ll, best in zip(label, np.argsort(logit, axis=1)[:, -5:])])
+                front_num = int(np.ceil(nb_protos_cl*(1-logit_thta)))
+                back_num = int(np.floor(nb_protos_cl*logit_thta))
+                files_protoset[order[itera * nb_cl + iter_dico]] = file_process[ind_last[-front_num:]]
+                files_protoset[order[itera * nb_cl + iter_dico]] = np.concatenate(files_protoset[order[itera * nb_cl + iter_dico]],[file_process[ind_last[back_num:]]])
             coord.request_stop()
             coord.join(threads)
 
             # Reset the graph
         tf.reset_default_graph()
-
-        # Class means for iCaRL and NCM
-        # class_means 用于分类测试
-        print('Computing theoretical class means for NCM and mean-of-exemplars for iCaRL ...')
-        for iteration2 in range(itera + 1):
-            inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network(
-                'train',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_model_path)
-
-            with tf.Session(config=config) as sess:
-                coord = tf.train.Coordinator()
-                threads = tf.train.start_queue_runners(coord=coord)
-                void2 = sess.run(inits)
-
-                Dtot, label_dico, file_process = utils_data.load_class_in_feature_space(nb_cl, batch_size, scores, label_batch,
-                                                                          loss_class,
-                                                                          file_string_batch,op_feature_map, sess,file_num=int(nb_protos*100+nb_cl*500))
-                # file_process = np.array([x.decode() for x in file_process])
-                for iter_dico in range(nb_cl):
-                    ind_cl = np.where(label_dico == order[iter_dico + iteration2 * nb_cl])[0]
-                    D = Dtot[:, ind_cl]
-                    files_iter = file_process[ind_cl]
-                    current_cl = order[range(iteration2 * nb_cl, (iteration2 + 1) * nb_cl)]#nb_groups
-
-                    # Normal NCM mean
-                    # 各维度信息： 特征：类别：(0,1)：nb_groups
-                    class_means[:, order[iteration2 * nb_cl + iter_dico], 1, itera] = np.mean(D, axis=1)
-                    # 归一化后的信息
-                    class_means[:, order[iteration2 * nb_cl + iter_dico], 1, itera] /= np.linalg.norm(
-                        class_means[:, order[iteration2 * nb_cl + iter_dico], 1, itera])
-
-                    # iCaRL approximated mean (mean-of-exemplars)
-                    # use only the first exemplars of the old classes:
-                    # nb_protos_cl controls the number of exemplars per class
-                    ind_herding = []
-                    for i in range(min(nb_protos_cl, len(files_protoset[order[iter_dico + iteration2 * nb_cl]]))):
-                        ind_tmp = np.where(files_iter == files_protoset[order[iter_dico + iteration2 * nb_cl]][i])
-                        ind_herding.extend(ind_tmp[0])
-                    # ind_herding = np.array(
-                    #     [np.where(files_iter == files_protoset[order[iter_dico + iteration2 * nb_cl]][i])[0][0] for i in
-                    #      range(min(nb_protos_cl, len(files_protoset[order[iter_dico + iteration2 * nb_cl]])))])
-                    D_tmp = D[:, ind_herding]
-                    class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera] = np.mean(D_tmp, axis=1)
-                    class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera] /= np.linalg.norm(
-                        class_means[:, order[iteration2 * nb_cl + iter_dico], 0, itera])
-
-                coord.request_stop()
-                coord.join(threads)
-
-        # Reset the graph
-        tf.reset_default_graph()
-
-        # Pickle class means and protoset
-        # 每个增量阶段的class_means 不相同
-        with open(save_model_path+str(nb_cl) + 'class_means'+str(itera)+'.pickle', 'wb') as fp:
-            cPickle.dump(class_means, fp)
         with open(save_model_path+str(nb_cl) + 'files_protoset.pickle', 'wb') as fp:
             cPickle.dump(files_protoset, fp)
