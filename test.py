@@ -1,7 +1,9 @@
 import numpy as np
 
 label = np.array([1,2,3,4])
+loc = [False,True,True,False]
 logit = np.array([[1,2,36,7],[13,4,5,2],[23,32,3,4],[12,23,43,6]])
+print(logit[loc])
 var1=[logit1.var() for logit1 in logit]
 print(var1)
 logitnew = logit.T

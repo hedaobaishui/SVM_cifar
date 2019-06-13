@@ -19,7 +19,7 @@ config.gpu_options.allow_growth = True
 ##############Incremental Learning Setting######################
 gpu        = '0'
 batch_size = 128            # Batch size
-logit_thta = 0.2            # 分类错误的样本占分类正确样本的数量
+logit_thta = 0.1            # 分类错误的样本占分类正确样本的数量
 n          = 5              # Set the depth of the architecture: n = 5 -> 32 layers (See He et al. paper)
 nb_val     = 0              # Validation samples per class
 nb_cl      = 10             # Classes per group
@@ -53,15 +53,15 @@ for i in range(100):
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2,10]:#5,20,50]:
+for step_classes in [2,5,10,20,50]:
     save_model_path = save_path + 'step_' + str(step_classes) + '_classes' + '/logits/'
     nb_cl = step_classes  # Classes per group
     nb_groups = int(100 / nb_cl)
     for itera in range(nb_groups):#100/nb_cl
         if itera == 0:#第一次迭代增加批次 后面网络被初始化 效率提高
-            epochs = 1
+            epochs = 80
         else:
-            epochs = 1
+            epochs = 50
         """
         1、先构建网络，定义一些变量
         2、构建损失函数
@@ -200,21 +200,20 @@ for step_classes in [2,10]:#5,20,50]:
                 ind_cl = np.where(label_dico == order[iter_dico + itera * nb_cl])[0]
                 logit = Logits[ind_cl,:]
                 label = label_dico[ind_cl]
-                # file_now = file_process[ind_cl]
+                file_now = file_process[ind_cl]
                 #Top5 分类正确
                 pre_label =np.argsort(logit, axis=1)[:, -5:]
                 label_zip = zip(label, pre_label)
                 T_pre_xu = [ll in best for ll,best in label_zip]#预测正确的样本序号
-                #分类正确的样本的索引
-                ind_get = ind_cl[T_pre_xu]
-                logit = logit[ind_get,:]#分类正确的样本的 score
-                #计算logit 方差 选择方差大的样本添加。
+                logit = logit[T_pre_xu]#分类正确的样本的 score
+                #计算logit 方差 选择方差大的样本添加。#选择当前类的logits最大的几个
                 ind_last = np.argsort([logit_.var() for logit_ in logit])
                 #ind_get = ([ll in best for ll, best in zip(label, np.argsort(logit, axis=1)[:, -5:])])
                 front_num = int(np.ceil(nb_protos_cl*(1-logit_thta)))
                 back_num = int(np.floor(nb_protos_cl*logit_thta))
-                files_protoset[order[itera * nb_cl + iter_dico]] = file_process[ind_last[-front_num:]]
-                files_protoset[order[itera * nb_cl + iter_dico]] = np.concatenate(files_protoset[order[itera * nb_cl + iter_dico]],[file_process[ind_last[back_num:]]])
+                files_protoset[order[itera * nb_cl + iter_dico]] = file_now[ind_last[-front_num:]]
+                back_file = file_now[ind_last[0:back_num]]
+                files_protoset[order[itera * nb_cl + iter_dico]] = np.concatenate((files_protoset[order[itera * nb_cl + iter_dico]],back_file))
             coord.request_stop()
             coord.join(threads)
 

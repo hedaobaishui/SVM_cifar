@@ -18,7 +18,7 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 ##############Incremental Learning Setting######################
 gpu        = '0'
-batch_size = 128            # Batch size
+batch_size = 72            # Batch size
 n          = 5              # Set the depth of the architecture: n = 5 -> 32 layers (See He et al. paper)
 nb_val     = 0              # Validation samples per class
 nb_cl      = 10             # Classes per group
@@ -47,7 +47,7 @@ dictionary_size   = 500-nb_val
 #top1_acc_list_ori   = np.zeros((100/nb_cl,3,nb_runs))
 
 #执行多次.................................
-for step_classes in [2,10]:#5,20,50]:
+for step_classes in [2,5,10,20,50]:
     save_model_path = save_path + 'step_' + str(step_classes) + '_classes' + '/NCM/'
     nb_cl = step_classes  # Classes per group
     nb_groups = int(100 / nb_cl)
@@ -170,7 +170,7 @@ for step_classes in [2,10]:#5,20,50]:
         tf.reset_default_graph()
         #筛选保留集
         #总计2000个保留样本 每一类的保留数量（2000/类别数）
-        nb_protos_cl = int(np.ceil(nb_protos*100./nb_cl/(itera+1)))
+        nb_protos_cl = int(np.ceil(nb_protos*100/nb_cl/(itera+1)))
         print('updating reserved file')
 
         '''
@@ -219,7 +219,7 @@ for step_classes in [2,10]:#5,20,50]:
         print('Computing theoretical class means for NCM and mean-of-exemplars for iCaRL ...')
         for iteration2 in range(itera + 1):
             inits, scores, label_batch, loss_class, file_string_batch, op_feature_map = utils_data.reading_data_and_preparing_network(
-                'train',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_model_path)
+                'test',image_train, label_train, files_protoset, itera, batch_size, order, nb_cl, save_model_path)
 
             with tf.Session(config=config) as sess:
                 coord = tf.train.Coordinator()
